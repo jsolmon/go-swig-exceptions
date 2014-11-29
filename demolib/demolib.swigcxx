@@ -1,0 +1,65 @@
+%module demolib
+
+%{
+#include <stdexcept>
+#include "demolib.h"
+%}
+%include "exception.i"
+
+// The %exception directive will catch any exception thrown by the C++ library and
+// panic() with the same message.
+%exception {
+    try {
+        $action;
+    } catch (std::exception &e) {
+        _swig_gopanic(e.what());
+    }
+}
+
+// Rename the DemoLib class to Wrapped_DemoLib so that it can be wrapped in an 
+// DemoLib interface in the go_wrapper. Same for all methods that throw exceptions
+// which need to be turned into errors.
+%rename(Wrapped_DemoLib) DemoLib;
+%rename(Wrapped_NegativeThrows) DemoLib::NegativeThrows;
+%rename(Wrapped_DivideBy) DemoLib::DivideBy;
+
+%include "demolib.h"
+
+%go_import("fmt")
+%insert(go_wrapper) %{
+
+type DemoLib interface {
+    Wrapped_DemoLib
+    NegativeThrows(int) (int, error)
+    DivideBy(int) (float64, error)
+}
+
+func NewDemoLib() DemoLib {
+    return _swig_wrap_new_Wrapped_DemoLib()
+}
+
+// NegativeThrows catched panics generated in the %exception block and turns them into
+// a go error type
+func (e SwigcptrWrapped_DemoLib) NegativeThrows(n int) (i int, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+
+	i = e.Wrapped_NegativeThrows(n)
+	return
+}
+
+func (e SwigcptrWrapped_DemoLib) DivideBy(n int) (f float64, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+
+	f = e.Wrapped_DivideBy(n)
+	return
+}
+
+%}
