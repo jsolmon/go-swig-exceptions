@@ -1,4 +1,4 @@
-# Exception Handling when porting a C++ library to Go with SWIG
+## Using SWIG to port a C++ library with exceptions to Go
 This code is intended as an example of how to port a C++ library which throws exceptions to go. All methods which throw exceptions are wrapped in try/catch blocks which transform the exceptions into panics which are then recovered from to return go errors.
 
 #### Install
@@ -14,8 +14,8 @@ go test
 
 ## Description
 
-### C++ Class
-Our C++ class has two methods which throw exceptions and one which does not.
+### DemoLib C++ Class
+The DemoLib C++ class has two methods (`DivideBy` and `NegativeThrows`) which throw exceptions on some inputs and one method (`NeverThrows`) which will never throw an exception.
 ```C++
 DemoLib::DemoLib() {}o
 
@@ -39,8 +39,9 @@ int DemoLib::NeverThrows(int in) {
 ```
 
 ### .swigcxx File
-The `%exception` directive will wrap all calls to the C++ library in a try/catch block and turn any caught exceptions into go panics containing the C++ `exception.what()` message.
+The `%exception` directive will wrap all calls to the C++ library in a try/catch block and turn any caught exceptions into go panics containing the C++ `exception.what()` message. The `_swig_gopanic()` method is defined in `exception.i` in the swig library.
 ```
+%include "exception.i"
 %exception {
     try {
         $action;
@@ -63,7 +64,7 @@ The `go_wrapper` allows for writing go code in the swig file to wrap the interfa
 %insert(go_wrapper) %{
 ```
 
-Create a wrapper interface called DemoLib which includes functions for `NegativeThrows` and `DivideBy` returning tuples which include an error.
+Inside the `go_wrapper`, create a wrapper interface called DemoLib which includes functions for `NegativeThrows` and `DivideBy` which return tuples which include error types.
 ```
 type DemoLib interface {
     Wrapped_DemoLib
@@ -77,7 +78,7 @@ func NewDemoLib() DemoLib {
 
 ```
 
-Write wrapper functions for `NegativeThrows` and `DivideBy` which recover from panics caused by exceptions and write the panic contents to the returned error. Unfortunately, this winds up with a lot of repeated code across each function, but the result is a clean go-like API with exceptions safely caught and transformed into errors.
+Also in the `go_wrapper` are wrapper functions for `NegativeThrows` and `DivideBy` which recover from panics caused by exceptions and write the panic contents to the returned error. Unfortunately, this winds up with a lot of repeated code across each function, but the result is a clean go-like API with exceptions safely caught and transformed into errors.
 ```
 func (e SwigcptrWrapped_DemoLib) NegativeThrows(n int) (i int, err error) {
 	defer func() {
@@ -103,7 +104,7 @@ func (e SwigcptrWrapped_DemoLib) DivideBy(n int) (f float64, err error) {
 ```
 
 ### Go Tests
-Golang tests which demonstrate the demolib API in action.
+Golang tests which demonstrate the demolib API in action. When the functions are called with values that throw exceptions in the C++ library, those exceptions are translated into go errors and can be handled as such.
 ```Go
 var (
 	demo = demolib.NewDemoLib()
