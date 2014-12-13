@@ -38,26 +38,25 @@ func NewDemoLib() DemoLib {
     return _swig_wrap_new_Wrapped_DemoLib()
 }
 
+// catch will recover from a panic and store the recover message to the error 
+// parameter. The error must be passed by reference in order to be returned to the
+// calling function.
+func catch(err *error) {
+    if r := recover(); r != nil {
+        *err = fmt.Errorf("%v", r)
+    }
+}
+
 // NegativeThrows catched panics generated in the %exception block and turns them into
 // a go error type
 func (e SwigcptrWrapped_DemoLib) NegativeThrows(n int) (i int, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
-		}
-	}()
-
+	defer catch(&err)
 	i = e.Wrapped_NegativeThrows(n)
 	return
 }
 
 func (e SwigcptrWrapped_DemoLib) DivideBy(n int) (f float64, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
-		}
-	}()
-
+    defer catch(&err)
 	f = e.Wrapped_DivideBy(n)
 	return
 }
