@@ -1,13 +1,11 @@
-package main
+package demolib
 
 import (
 	"testing"
-
-	"github.com/jsolmon/go-swig-exceptions/demolib"
 )
 
 var (
-	demo = demolib.NewDemoLib()
+	demo = NewDemoLib()
 )
 
 func TestThrowsNegativeDoesNotThrow(t *testing.T) {
