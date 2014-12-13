@@ -1,16 +1,5 @@
 ## Using SWIG to port a C++ library with exceptions to Go
-This code is intended as an example of how to port a C++ library which throws exceptions to go. All methods which throw exceptions are wrapped in try/catch blocks which transform the exceptions into panics which are then recovered from to return go errors.
-
-#### Install
-From the demolib directory, run
-```Bash
-go install
-```
-#### Test
-From the base directory, run
-```Bash
-go test
-```
+This code is intended as an example of how to port a C++ library which throws exceptions to go. All methods which throw exceptions are wrapped in try/catch blocks which transform the exceptions into panics which are then recovered to return go errors.
 
 ## Description
 
@@ -51,7 +40,7 @@ The `%exception` directive will wrap all calls to the C++ library in a try/catch
 }
 ```
 
-The go interface and methods created by swig must be renamed so that they can be wrapped by the code which catches the panics and turns the result into errors. The `DemoLib` class is renamed to `Wrapped_DemoLib` and the `NegativeThrows` and `DivideBy` methods are wrapped as `Wrapped_NegativeThrows` and `Wrapped_DivideBy`. No wrapping is necessary for the `NeverThrows` method because it does not throw exceptions and will not be changed.
+The go interface and methods created by swig must be renamed so that they can be wrapped by the code which catches the panics and turns the result into errors. The `DemoLib` class is renamed to `Wrapped_DemoLib` and the `NegativeThrows` and `DivideBy` methods are wrapped as `Wrapped_NegativeThrows` and `Wrapped_DivideBy`. No wrapping is necessary for the `NeverThrows` method because it does not throw exceptions so it does not need to be renamed and wrapped in panic recovery go code.
 ```
 %rename(Wrapped_DemoLib) DemoLib;
 %rename(Wrapped_NegativeThrows) DemoLib::NegativeThrows;
@@ -65,7 +54,8 @@ The `go_wrapper` allows for writing go code in the swig file to wrap the interfa
 ```
 
 Inside the `go_wrapper`, create a wrapper interface called DemoLib which includes functions for `NegativeThrows` and `DivideBy` which return tuples which include error types.
-```
+```Go
+// inside the go_wrapper...
 type DemoLib interface {
     Wrapped_DemoLib
     NegativeThrows(int) (int, error)
@@ -78,36 +68,39 @@ func NewDemoLib() DemoLib {
 
 ```
 
-Also in the `go_wrapper` are wrapper functions for `NegativeThrows` and `DivideBy` which recover from panics caused by exceptions and write the panic contents to the returned error. Unfortunately, this winds up with a lot of repeated code across each function, but the result is a clean go-like API with exceptions safely caught and transformed into errors.
+The `catch` function will recover from a panic and write the panic's message to the error parameter. The error parameter must be passed by reference to allow it to be returned by the calling function.
+```Go
+// inside the go_wrapper...
+func catch(err *error) {
+    if r := recover(); r != nil {
+        *err = fmt.Errorf("%v", r)
+    }
+}
 ```
-func (e SwigcptrWrapped_DemoLib) NegativeThrows(n int) (i int, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
-		}
-	}()
 
+
+Also in the `go_wrapper` are wrapper functions for `NegativeThrows` and `DivideBy`. These call `catch` to recover from panics caused by exceptions and write the panic contents to the returned error.
+```Go
+// inside the go_wrapper...
+func (e SwigcptrWrapped_DemoLib) NegativeThrows(n int) (i int, err error) {
+	defer catch(&err)
 	i = e.Wrapped_NegativeThrows(n)
 	return
 }
 
 func (e SwigcptrWrapped_DemoLib) DivideBy(n int) (f float64, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
-		}
-	}()
-
+    defer catch(&err)
 	f = e.Wrapped_DivideBy(n)
 	return
 }
+// %} end of go_wrapper
 ```
 
 ### Go Tests
 Golang tests which demonstrate the demolib API in action. When the functions are called with values that throw exceptions in the C++ library, those exceptions are translated into go errors and can be handled as such.
 ```Go
 var (
-	demo = demolib.NewDemoLib()
+	demo = NewDemoLib()
 )
 
 func TestThrowsNegativeThrows(t *testing.T) {
